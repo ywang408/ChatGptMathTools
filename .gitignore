@@ -1,0 +1,5 @@
+clipboard-backups/
+*.converted.md
+*.converted.txt
+test1.txt
+test2.txt
