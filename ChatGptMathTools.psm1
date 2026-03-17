@@ -138,6 +138,18 @@ function Get-MatchingClosingParenthesisIndex {
     return -1
 }
 
+function Test-IsMathParenthesisBoundaryChar {
+    param(
+        [char]$Character
+    )
+
+    if ([char]::IsWhiteSpace($Character)) {
+        return $true
+    }
+
+    return $Character -match '[\[\]{}<>:;,.!?/\\|`~"''“”‘’*-]'
+}
+
 function Test-MathLikeContent {
     param(
         [string]$Candidate
@@ -268,6 +280,10 @@ function Convert-ChatGptMathText {
             }
 
             if ($inMathBlock) {
+                if ($line -match '^\s*[=-]{3,}\s*$') {
+                    continue
+                }
+
                 $convertedLines.Add($line)
                 continue
             }
@@ -305,6 +321,22 @@ function Convert-ChatGptMathText {
                 if (-not $inInlineCode -and $char -eq '(' -and ($index -eq 0 -or $line[$index - 1] -ne ']')) {
                     $closingIndex = Get-MatchingClosingParenthesisIndex -Text $line -OpenIndex $index
                     if ($closingIndex -gt $index) {
+                        $isValidLeftBoundary = $index -eq 0
+                        if (-not $isValidLeftBoundary) {
+                            $isValidLeftBoundary = Test-IsMathParenthesisBoundaryChar -Character $line[$index - 1]
+                        }
+
+                        $isValidRightBoundary = $closingIndex -eq ($line.Length - 1)
+                        if (-not $isValidRightBoundary) {
+                            $isValidRightBoundary = Test-IsMathParenthesisBoundaryChar -Character $line[$closingIndex + 1]
+                        }
+
+                        if (-not ($isValidLeftBoundary -and $isValidRightBoundary)) {
+                            [void]$builder.Append($char)
+                            $index++
+                            continue
+                        }
+
                         $candidate = $line.Substring($index + 1, $closingIndex - $index - 1)
                         if (Test-MathLikeContent -Candidate $candidate) {
                             [void]$builder.Append('$')
